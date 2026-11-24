@@ -1,0 +1,1971 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-PT" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>StickerFlow Studio — Stickers WhatsApp Sem Soluços</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter & Anton (para estilo Meme/Impact) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <!-- JSZip para gerar pacotes .wastickers / .zip no navegador -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- gifuct-js para descodificação precisa de GIFs quadro a quadro -->
+    <script src="https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct-js.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                        impact: ['Anton', 'sans-serif'],
+                    },
+                    colors: {
+                        studio: {
+                            bg: '#090d11',
+                            panel: '#11171f',
+                            card: '#18212c',
+                            border: '#243140',
+                            emerald: '#10b981',
+                            cyan: '#06b6d4',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Padrão de transparência (xadrez) para o ecrã do sticker */
+        .checkerboard-bg {
+            background-color: #131a22;
+            background-image: 
+                linear-gradient(45deg, #1c2632 25%, transparent 25%), 
+                linear-gradient(-45deg, #1c2632 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #1c2632 75%), 
+                linear-gradient(-45deg, transparent 75%, #1c2632 75%);
+            background-size: 24px 24px;
+            background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+        }
+
+        /* Barras de deslocamento personalizadas */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d11;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #243140;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #10b981;
+        }
+
+        /* Sliders estilizados */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #243140;
+            height: 6px;
+            border-radius: 999px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            border: 2px solid #090d11;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+            transition: transform 0.1s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: #06b6d4;
+        }
+
+        .glass-panel {
+            background: rgba(17, 23, 31, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-studio-bg text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-emerald-500/30 selection:text-emerald-200">
+
+    <!-- Notificação Toast Flutuante (substitui qualquer alert) -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4 sm:px-0"></div>
+
+    <!-- Cabeçalho Superior -->
+    <header class="sticky top-0 z-30 glass-panel border-b border-studio-border px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <!-- Logótipo -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-emerald-300 bg-clip-text text-transparent">
+                            StickerFlow Studio
+                        </h1>
+                        <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            60FPS Engine
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 hidden sm:block">Criador de Stickers WhatsApp sem soluços nem perda de fluidez</p>
+                </div>
+            </div>
+
+            <!-- Botões de Ação Rápida -->
+            <div class="flex items-center gap-2">
+                <button id="btn-open-import" class="px-3.5 py-2 rounded-xl bg-studio-card hover:bg-slate-800 border border-studio-border text-xs sm:text-sm font-semibold text-slate-200 flex items-center gap-2 transition active:scale-95">
+                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span>Novo Ficheiro</span>
+                </button>
+
+                <button id="btn-add-to-pack" class="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-xs sm:text-sm font-semibold text-emerald-300 flex items-center gap-2 transition active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Guardar no Pack</span>
+                </button>
+
+                <button id="btn-export-modal" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 text-xs sm:text-sm font-bold shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Exportar WhatsApp</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Área Principal do Estúdio -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- Coluna Esquerda / Centro: Palco de Pré-visualização 512x512 + Linha Temporal -->
+        <section class="lg:col-span-7 flex flex-col gap-4">
+            
+            <!-- Cartão de Conformidade WhatsApp em Tempo Real -->
+            <div class="bg-studio-panel border border-studio-border rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <div id="compliance-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                    <span id="compliance-status" class="text-xs font-semibold text-emerald-300">Pronto para WhatsApp (512×512 px)</span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                    <span class="px-2.5 py-1 rounded-lg bg-studio-card border border-studio-border text-slate-300" title="Dimensões Obrigatórias WhatsApp">
+                        512×512 px
+                    </span>
+                    <span id="metric-fps" class="px-2.5 py-1 rounded-lg bg-studio-card border border-studio-border text-cyan-300">
+                        24 FPS Fixo
+                    </span>
+                    <span id="metric-duration" class="px-2.5 py-1 rounded-lg bg-studio-card border border-studio-border text-slate-300">
+                        0.0s / 10s
+                    </span>
+                    <span id="metric-size" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                        ~180 KB / 500 KB
+                    </span>
+                </div>
+            </div>
+
+            <!-- Palco Principal do Canvas -->
+            <div class="relative bg-studio-panel border border-studio-border rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center overflow-hidden shadow-xl">
+                
+                <!-- Barra Superior de Ferramentas Rápidas do Canvas -->
+                <div class="w-full flex items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-1.5 bg-studio-card p-1 rounded-xl border border-studio-border">
+                        <button data-fit="contain" class="fit-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500 text-slate-950 font-bold transition">
+                            Ajustar (1:1)
+                        </button>
+                        <button data-fit="cover" class="fit-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition">
+                            Preencher
+                        </button>
+                        <button id="btn-reset-transform" class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-cyan-300 transition" title="Centrar imagem">
+                            Centrar
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-xs text-slate-400">
+                        <span class="hidden sm:inline">Arraste para mover • Roda para zoom</span>
+                        <span id="zoom-badge" class="font-mono text-cyan-400 bg-studio-card px-2 py-1 rounded-lg border border-studio-border">100%</span>
+                    </div>
+                </div>
+
+                <!-- Contentor Quadrado Responsivo do Canvas -->
+                <div id="canvas-wrapper" class="relative w-full max-w-[380px] sm:max-w-[420px] aspect-square rounded-2xl checkerboard-bg border-2 border-dashed border-slate-700/80 overflow-hidden shadow-2xl cursor-grab active:cursor-grabbing select-none touch-none">
+                    <canvas id="preview-canvas" width="512" height="512" class="w-full h-full block"></canvas>
+                    
+                    <!-- Guia visual de margem segura do WhatsApp -->
+                    <div id="safe-zone-guide" class="pointer-events-none absolute inset-4 border border-cyan-400/25 rounded-xl hidden"></div>
+
+                    <!-- Indicador de Conta-Gotas (Chroma Key Picker) -->
+                    <div id="eyedropper-banner" class="hidden absolute top-3 left-3 right-3 bg-cyan-950/90 border border-cyan-400/50 text-cyan-200 text-xs px-3 py-2 rounded-xl text-center font-medium backdrop-blur-md">
+                        Toque na cor do sticker que pretende tornar transparente
+                    </div>
+                </div>
+
+                <!-- Controlos de Reprodução & Linha Temporal (Timeline Anti-Soluços) -->
+                <div class="w-full mt-4 bg-studio-card/90 border border-studio-border rounded-xl p-3 flex flex-col gap-3">
+                    <div class="flex items-center gap-3">
+                        <button id="btn-play-pause" class="w-9 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shrink-0 transition active:scale-95" title="Reproduzir / Pausar">
+                            <svg id="icon-pause" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                            </svg>
+                            <svg id="icon-play" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </button>
+
+                        <!-- Barra de Progresso dos Fotogramas -->
+                        <div class="flex-1 flex flex-col gap-1">
+                            <input id="timeline-scrubber" type="range" min="0" max="100" value="0" class="w-full">
+                            <div class="flex justify-between text-[10px] font-mono text-slate-400">
+                                <span id="frame-counter">Fotograma 1 / 1</span>
+                                <span id="smooth-badge" class="text-emerald-400">● Interpolação Fluida Ativa</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Corte de Início e Fim (Trim) -->
+                    <div id="trim-controls" class="grid grid-cols-2 gap-3 pt-2 border-t border-studio-border/70 text-xs">
+                        <div>
+                            <div class="flex justify-between text-slate-400 mb-1">
+                                <span>Início do Corte</span>
+                                <span id="trim-start-val" class="font-mono text-slate-200">0%</span>
+                            </div>
+                            <input id="trim-start" type="range" min="0" max="90" value="0" class="w-full">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-slate-400 mb-1">
+                                <span>Fim do Corte</span>
+                                <span id="trim-end-val" class="font-mono text-slate-200">100%</span>
+                            </div>
+                            <input id="trim-end" type="range" min="10" max="100" value="100" class="w-full">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Galeria Rápida de Demos & Importação -->
+            <div class="bg-studio-panel border border-studio-border rounded-2xl p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-100">Modelos Animados Instantâneos (60 FPS)</h2>
+                        <p class="text-xs text-slate-400">Experimente o motor anti-soluços ou carregue o seu próprio GIF, Vídeo ou Foto</p>
+                    </div>
+                    <label for="file-input" class="cursor-pointer px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-xs font-semibold transition">
+                        + Carregar Ficheiro
+                    </label>
+                    <input id="file-input" type="file" accept="image/gif,image/webp,image/png,image/jpeg,video/mp4,video/webm" class="hidden">
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5" id="preset-grid">
+                    <!-- Preenchido via JS com demos procedurais fluidas -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Coluna Direita: Painel de Controlo Profissional (Abas) -->
+        <aside class="lg:col-span-5 flex flex-col gap-4">
+            
+            <!-- Navegação por Abas -->
+            <div class="bg-studio-panel border border-studio-border rounded-2xl p-1.5 grid grid-cols-4 gap-1">
+                <button data-tab="fluidity" class="tab-btn py-2 px-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 text-emerald-300 border border-emerald-500/30 transition">
+                    ⚡ Fluidez
+                </button>
+                <button data-tab="cutout" class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition">
+                    ✂️ Recorte
+                </button>
+                <button data-tab="text" class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition">
+                    🔤 Texto
+                </button>
+                <button data-tab="pack" class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition relative">
+                    📦 Pack
+                    <span id="pack-badge" class="ml-1 px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-extrabold">0</span>
+                </button>
+            </div>
+
+            <!-- Conteúdo das Abas -->
+            <div class="bg-studio-panel border border-studio-border rounded-2xl p-4 sm:p-5 flex-1 flex flex-col gap-5">
+                
+                <!-- ABA 1: MOTOR ANTI-SOLUÇOS & FLUIDEZ -->
+                <div id="tab-fluidity" class="tab-panel flex flex-col gap-5">
+                    <div class="p-3.5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 border border-emerald-500/25">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-300 mb-1">Porquê sem soluços?</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Muitas apps convertem GIFs mantendo atrasos irregulares entre fotogramas, o que faz o WhatsApp engasgar. O nosso motor reamostra o tempo para uma cadência constante e otimiza o peso abaixo de <strong>500 KB</strong>.
+                        </p>
+                    </div>
+
+                    <!-- Cadência de Fotogramas (FPS) -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-xs font-bold text-slate-200">Cadência Alvo (FPS Constante)</label>
+                            <span id="fps-display" class="text-xs font-mono font-bold text-emerald-400">24 FPS</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button data-fps="15" class="fps-btn py-2 rounded-xl bg-studio-card border border-studio-border text-xs font-mono font-semibold text-slate-300 hover:border-emerald-500/50 transition">15 FPS</button>
+                            <button data-fps="20" class="fps-btn py-2 rounded-xl bg-studio-card border border-studio-border text-xs font-mono font-semibold text-slate-300 hover:border-emerald-500/50 transition">20 FPS</button>
+                            <button data-fps="24" class="fps-btn py-2 rounded-xl bg-emerald-500/20 border border-emerald-500 text-xs font-mono font-bold text-emerald-300 transition">24 FPS</button>
+                            <button data-fps="30" class="fps-btn py-2 rounded-xl bg-studio-card border border-studio-border text-xs font-mono font-semibold text-slate-300 hover:border-emerald-500/50 transition">30 FPS</button>
+                        </div>
+                    </div>
+
+                    <!-- Velocidade de Reprodução -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="font-bold text-slate-200">Velocidade da Animação</span>
+                            <span id="speed-val" class="font-mono text-cyan-400">1.0x</span>
+                        </div>
+                        <input id="speed-slider" type="range" min="0.5" max="2.0" step="0.1" value="1.0" class="w-full">
+                    </div>
+
+                    <!-- Modo de Ciclo (Loop) -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-2">Modo de Repetição (Loop)</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button data-loop="normal" class="loop-btn py-2.5 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500 text-xs font-bold text-emerald-300 flex items-center justify-center gap-2 transition">
+                                <span>↻ Normal</span>
+                            </button>
+                            <button data-loop="boomerang" class="loop-btn py-2.5 px-3 rounded-xl bg-studio-card border border-studio-border text-xs font-semibold text-slate-300 hover:border-cyan-500/50 flex items-center justify-center gap-2 transition">
+                                <span>⇄ Boomerang (Ida e Volta)</span>
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1.5">O modo <strong>Boomerang</strong> elimina saltos bruscos no fim do GIF.</p>
+                    </div>
+
+                    <!-- Compressão Inteligente (< 500 KB WhatsApp) -->
+                    <div class="pt-3 border-t border-studio-border">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="font-bold text-slate-200">Qualidade WebP / Compressão</span>
+                            <span id="quality-val" class="font-mono text-emerald-400">82%</span>
+                        </div>
+                        <input id="quality-slider" type="range" min="30" max="100" step="2" value="82" class="w-full">
+                        <p class="text-[11px] text-slate-400 mt-1">Ajuste automaticamente se o ficheiro ultrapassar os 500 KB exigidos pelo WhatsApp.</p>
+                    </div>
+                </div>
+
+                <!-- ABA 2: RECORTE, FUNDO & CONTORNO -->
+                <div id="tab-cutout" class="tab-panel hidden flex flex-col gap-5">
+                    
+                    <!-- Remoção de Fundo (Chroma Key em todos os fotogramas) -->
+                    <div class="bg-studio-card/70 border border-studio-border rounded-xl p-3.5 flex flex-col gap-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-xs font-bold text-slate-100">Remover Fundo (Todos os Fotogramas)</h3>
+                                <p class="text-[11px] text-slate-400">Apaga uma cor sólida em toda a animação</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input id="chroma-toggle" type="checkbox" class="sr-only peer">
+                                <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                            </label>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button id="btn-pick-color" class="flex-1 py-2 px-3 rounded-xl bg-studio-panel hover:bg-slate-800 border border-studio-border text-xs font-semibold text-cyan-300 flex items-center justify-center gap-2 transition">
+                                <span>💧 Escolher Cor no Ecrã</span>
+                            </button>
+                            <input id="chroma-color" type="color" value="#00ff00" class="w-10 h-9 rounded-lg bg-transparent border border-studio-border cursor-pointer">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Tolerância da Cor</span>
+                                <span id="chroma-tol-val" class="font-mono text-cyan-400">35</span>
+                            </div>
+                            <input id="chroma-tolerance" type="range" min="5" max="140" value="35" class="w-full">
+                        </div>
+                    </div>
+
+                    <!-- Contorno Recortado (Die-Cut Sticker Outline) -->
+                    <div class="bg-studio-card/70 border border-studio-border rounded-xl p-3.5 flex flex-col gap-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-xs font-bold text-slate-100">Contorno de Autocolante (Borda)</h3>
+                                <p class="text-[11px] text-slate-400">Destaca o sticker no modo escuro do WhatsApp</p>
+                            </div>
+                            <input id="outline-color" type="color" value="#ffffff" class="w-8 h-8 rounded-lg bg-transparent border border-studio-border cursor-pointer">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Espessura do Contorno</span>
+                                <span id="outline-size-val" class="font-mono text-emerald-400">0 px</span>
+                            </div>
+                            <input id="outline-size" type="range" min="0" max="18" value="0" class="w-full">
+                        </div>
+                    </div>
+
+                    <!-- Zoom & Ajustes de Cor -->
+                    <div class="flex flex-col gap-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="font-bold text-slate-200">Zoom / Escala</span>
+                                <span id="zoom-slider-val" class="font-mono text-cyan-400">100%</span>
+                            </div>
+                            <input id="zoom-slider" type="range" min="40" max="250" value="100" class="w-full">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1">
+                                    <span class="text-slate-300">Brilho</span>
+                                    <span id="brightness-val" class="font-mono text-slate-400">100%</span>
+                                </div>
+                                <input id="brightness-slider" type="range" min="50" max="160" value="100" class="w-full">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[11px] mb-1">
+                                    <span class="text-slate-300">Contraste</span>
+                                    <span id="contrast-val" class="font-mono text-slate-400">100%</span>
+                                </div>
+                                <input id="contrast-slider" type="range" min="50" max="160" value="100" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA 3: TEXTO & MEME ANIMADO -->
+                <div id="tab-text" class="tab-panel hidden flex flex-col gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">Texto do Sticker</label>
+                        <input id="sticker-text" type="text" placeholder="Ex: BOM DIA! 🔥 ou QUÊ?!" maxlength="36" class="w-full px-3.5 py-2.5 rounded-xl bg-studio-card border border-studio-border text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-200 mb-1.5">Tipo de Letra</label>
+                            <select id="text-font" class="w-full px-3 py-2 rounded-xl bg-studio-card border border-studio-border text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                                <option value="Anton">Impact / Meme</option>
+                                <option value="Inter">Moderna Negrito</option>
+                                <option value="JetBrains Mono">Monospace Tech</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-200 mb-1.5">Posição Vertical</label>
+                            <select id="text-pos" class="w-full px-3 py-2 rounded-xl bg-studio-card border border-studio-border text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                                <option value="bottom">Em Baixo</option>
+                                <option value="top">Em Cima</option>
+                                <option value="center">Centro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex items-center justify-between bg-studio-card px-3 py-2 rounded-xl border border-studio-border">
+                            <span class="text-xs text-slate-300">Cor do Texto</span>
+                            <input id="text-color" type="color" value="#ffffff" class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer">
+                        </div>
+                        <div class="flex items-center justify-between bg-studio-card px-3 py-2 rounded-xl border border-studio-border">
+                            <span class="text-xs text-slate-300">Contorno</span>
+                            <input id="text-stroke-color" type="color" value="#000000" class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="font-bold text-slate-200">Tamanho do Texto</span>
+                            <span id="text-size-val" class="font-mono text-cyan-400">54 px</span>
+                        </div>
+                        <input id="text-size" type="range" min="24" max="96" value="54" class="w-full">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">Animação do Texto (Sincronizada)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button data-textanim="none" class="textanim-btn py-2 rounded-xl bg-emerald-500/20 border border-emerald-500 text-xs font-bold text-emerald-300">Fixo</button>
+                            <button data-textanim="pulse" class="textanim-btn py-2 rounded-xl bg-studio-card border border-studio-border text-xs font-semibold text-slate-300">Pulsar</button>
+                            <button data-textanim="bounce" class="textanim-btn py-2 rounded-xl bg-studio-card border border-studio-border text-xs font-semibold text-slate-300">Saltar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ABA 4: GESTOR DE PACK WHATSAPP -->
+                <div id="tab-pack" class="tab-panel hidden flex flex-col gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 mb-1">Nome do Pack</label>
+                            <input id="pack-name" type="text" value="Os Meus Stickers 60FPS" class="w-full px-3 py-2 rounded-xl bg-studio-card border border-studio-border text-xs text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 mb-1">Autor</label>
+                            <input id="pack-author" type="text" value="StickerFlow Studio" class="w-full px-3 py-2 rounded-xl bg-studio-card border border-studio-border text-xs text-white focus:outline-none focus:border-emerald-500">
+                        </div>
+                    </div>
+
+                    <!-- Barra de Progresso Mínimo 3 Stickers (Regra WhatsApp) -->
+                    <div class="bg-studio-card/80 border border-studio-border rounded-xl p-3">
+                        <div class="flex justify-between items-center text-xs mb-1.5">
+                            <span class="font-semibold text-slate-200">Progresso do Pack WhatsApp</span>
+                            <span id="pack-count-label" class="font-mono text-emerald-400">0 / 30 (Mín. 3)</span>
+                        </div>
+                        <div class="w-full h-2 bg-studio-bg rounded-full overflow-hidden">
+                            <div id="pack-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 w-0 transition-all duration-300"></div>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1.5">O WhatsApp exige pelo menos <strong>3 stickers</strong> para importar um pacote completo.</p>
+                    </div>
+
+                    <!-- Lista de Stickers Guardados no Pack -->
+                    <div id="pack-items-grid" class="grid grid-cols-3 gap-2.5 max-h-[240px] overflow-y-auto pr-1">
+                        <!-- Estado Vazio -->
+                        <div id="pack-empty-state" class="col-span-3 py-8 text-center border border-dashed border-studio-border rounded-xl">
+                            <p class="text-xs text-slate-400 mb-2">Ainda não adicionou stickers a este pack.</p>
+                            <button id="btn-empty-add" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/30 transition">
+                                + Guardar Sticker Atual
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal de Importação (Drag & Drop) -->
+    <div id="import-modal" class="fixed inset-0 z-40 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-studio-panel border border-studio-border rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white">Carregar Ficheiro para Sticker</h3>
+                <button id="btn-close-import" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-studio-card">✕</button>
+            </div>
+
+            <div id="drop-zone" class="border-2 border-dashed border-emerald-500/40 hover:border-emerald-400 bg-studio-card/50 rounded-2xl p-8 text-center cursor-pointer transition">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center mx-auto mb-3">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                </div>
+                <p class="text-sm font-bold text-slate-100 mb-1">Arraste um GIF, Vídeo ou Imagem para aqui</p>
+                <p class="text-xs text-slate-400 mb-4">Suporta GIF, WebP, MP4, WebM, PNG e JPG</p>
+                <span class="inline-block px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 text-xs font-bold">
+                    Selecionar do Dispositivo
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Exportação WhatsApp & Guia Prático -->
+    <div id="export-modal" class="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-studio-panel border border-studio-border rounded-2xl max-w-xl w-full p-5 sm:p-6 shadow-2xl my-auto">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h3 class="text-lg font-extrabold text-white">Exportar para WhatsApp</h3>
+                    <p class="text-xs text-slate-400">Formato oficial 512×512 px otimizado sem soluços</p>
+                </div>
+                <button id="btn-close-export" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-studio-card">✕</button>
+            </div>
+
+            <!-- Barra de Progresso de Renderização -->
+            <div id="render-progress-box" class="hidden mb-4 p-4 rounded-xl bg-studio-card border border-cyan-500/40">
+                <div class="flex justify-between text-xs font-bold text-cyan-300 mb-1.5">
+                    <span id="render-status-text">A codificar fotogramas sem soluços...</span>
+                    <span id="render-percent">0%</span>
+                </div>
+                <div class="w-full h-2 bg-studio-bg rounded-full overflow-hidden">
+                    <div id="render-bar" class="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 w-0 transition-all"></div>
+                </div>
+            </div>
+
+            <!-- Opções de Transferência -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <button id="btn-download-single-webp" class="p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 hover:from-emerald-500/30 border border-emerald-500/50 text-left transition group">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-mono uppercase px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-bold">Sticker Único</span>
+                        <span class="text-emerald-400 group-hover:translate-y-0.5 transition">↓</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-white">Transferir WebP (512×512)</h4>
+                    <p class="text-[11px] text-slate-300 mt-1">Ideal para enviar diretamente no WhatsApp Web ou importar no telemóvel.</p>
+                </button>
+
+                <button id="btn-download-wastickers" class="p-4 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 hover:from-cyan-500/30 border border-cyan-500/50 text-left transition group">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-mono uppercase px-2 py-0.5 rounded bg-cyan-400 text-slate-950 font-bold">Pack Completo</span>
+                        <span class="text-cyan-400 group-hover:translate-y-0.5 transition">📦</span>
+                    </div>
+                    <h4 class="text-sm font-bold text-white">Transferir Pack (.wastickers)</h4>
+                    <p class="text-[11px] text-slate-300 mt-1">Pacote pronto a abrir com 1 toque na app Sticker Maker no Android/iOS.</p>
+                </button>
+            </div>
+
+            <!-- Guia Prático de Importação no Telemóvel e PC -->
+            <div class="bg-studio-card/90 border border-studio-border rounded-xl p-4 text-xs space-y-2.5">
+                <h4 class="font-bold text-emerald-300 flex items-center gap-1.5">
+                    <span>📱 Como adicionar ao WhatsApp sem perder a fluidez:</span>
+                </h4>
+                <ul class="space-y-2 text-slate-300 leading-relaxed">
+                    <li>
+                        <strong class="text-white">1. No Telemóvel (Android / iPhone):</strong> Transfira o ficheiro <code class="text-cyan-300">.wastickers</code> acima e toque nele para abrir com a app gratuita <em>Sticker Maker</em> ou <em>Personal Stickers</em> — o ficheiro já vai pré-codificado a 512×512 px para a app não o recomprimir nem estragar os FPS!
+                    </li>
+                    <li>
+                        <strong class="text-white">2. No Computador (WhatsApp Web / Desktop):</strong> Transfira o ficheiro <code class="text-emerald-300">.webp</code> único e arraste-o diretamente para qualquer conversa do WhatsApp Web — ele converte-se automaticamente num sticker animado fluido.
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * STICKERFLOW STUDIO — MOTOR DE ANIMAÇÃO SEM SOLUÇOS E CODIFICAÇÃO WEBP
+         * ============================================================================
+         * Arquitetura:
+         * 1. Descodificador universal (GIF via gifuct-js, Vídeo via Frame Extraction, Imagens).
+         * 2. Motor de Reamostragem Temporal (Constant FPS Resampling + Boomerang).
+         * 3. Pipeline de Renderização 2D (Chroma Key multi-frame, Contorno Die-Cut, Texto).
+         * 4. Codificador Nativo de Animated WebP (RIFF/WEBP/ANIM/ANMF Muxer puro em JS).
+         */
+
+        // Estado Global da Aplicação
+        const state = {
+            sourceFrames: [],     // Array de { canvas: HTMLCanvasElement, delay: number }
+            isAnimated: false,
+            isPlaying: true,
+            currentTimeMs: 0,
+            lastRafTime: 0,
+
+            // Definições de Fluidez (Anti-Soluços)
+            targetFps: 24,
+            speed: 1.0,
+            loopMode: 'normal',   // 'normal' | 'boomerang'
+            trimStart: 0,         // 0 a 100 (%)
+            trimEnd: 100,         // 0 a 100 (%)
+            quality: 0.82,        // 0.30 a 1.00
+
+            // Definições de Transformação e Recorte
+            fitMode: 'contain',   // 'contain' | 'cover'
+            zoom: 1.0,
+            panX: 0,
+            panY: 0,
+            brightness: 100,
+            contrast: 100,
+
+            // Remoção de Fundo (Chroma Key)
+            chromaEnabled: false,
+            chromaColor: { r: 0, g: 255, b: 0 },
+            chromaTolerance: 35,
+            isPickingColor: false,
+
+            // Contorno (Die-Cut Outline)
+            outlineSize: 0,
+            outlineColor: '#ffffff',
+
+            // Texto & Meme
+            text: '',
+            textFont: 'Anton',
+            textPos: 'bottom',
+            textColor: '#ffffff',
+            textStrokeColor: '#000000',
+            textSize: 54,
+            textAnim: 'none',     // 'none' | 'pulse' | 'bounce'
+
+            // Pack de Stickers Guardados
+            pack: []              // Array de { id, name, blob, previewUrl, isAnimated }
+        };
+
+        // Referências DOM
+        const canvas = document.getElementById('preview-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const canvasWrapper = document.getElementById('canvas-wrapper');
+
+        // Canvas auxiliar para processamento de fotogramas
+        const workCanvas = document.createElement('canvas');
+        workCanvas.width = 512;
+        workCanvas.height = 512;
+        const workCtx = workCanvas.getContext('2d', { willReadFrequently: true });
+
+        // ============================================================================
+        // 1. UTILITÁRIOS DE NOTIFICAÇÃO E CORES
+        // ============================================================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                success: 'bg-emerald-950/95 border-emerald-500/60 text-emerald-200',
+                error: 'bg-rose-950/95 border-rose-500/60 text-rose-200',
+                info: 'bg-slate-900/95 border-cyan-500/60 text-cyan-200'
+            };
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl border text-xs font-semibold shadow-xl backdrop-blur-md transition-all duration-300 transform translate-y-0 ${colors[type] || colors.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-8px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3400);
+        }
+
+        function hexToRgb(hex) {
+            const clean = hex.replace('#', '');
+            const bigint = parseInt(clean, 16);
+            return {
+                r: (bigint >> 16) & 255,
+                g: (bigint >> 8) & 255,
+                b: bigint & 255
+            };
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
+        // ============================================================================
+        // 2. GERADOR DE MODELOS ANIMADOS PROCEDURAIS (ZERO LINKS EXTERNOS)
+        // ============================================================================
+        function generateProceduralPresets() {
+            const presets = [
+                {
+                    id: 'party-parrot',
+                    name: 'Festa Néon',
+                    frames: 24,
+                    fps: 24,
+                    draw: (c, t) => {
+                        const hue = (t * 360) % 360;
+                        const bounce = Math.sin(t * Math.PI * 2) * 24;
+                        c.clearRect(0, 0, 512, 512);
+                        
+                        // Aura brilhante
+                        c.save();
+                        c.translate(256, 265 + bounce);
+                        c.rotate(Math.sin(t * Math.PI * 2) * 0.15);
+                        
+                        // Corpo estilizado
+                        c.fillStyle = `hsl(${hue}, 90%, 55%)`;
+                        c.beginPath();
+                        c.arc(0, 0, 145, 0, Math.PI * 2);
+                        c.fill();
+
+                        // Óculos de sol Pixel/Cool
+                        c.fillStyle = '#090d11';
+                        c.fillRect(-95, -35, 80, 42);
+                        c.fillRect(15, -35, 80, 42);
+                        c.fillRect(-15, -25, 30, 12);
+
+                        // Reflexo nos óculos
+                        c.fillStyle = '#ffffff';
+                        c.fillRect(-80, -28, 22, 8);
+                        c.fillRect(30, -28, 22, 8);
+
+                        // Sorriso
+                        c.strokeStyle = '#090d11';
+                        c.lineWidth = 14;
+                        c.lineCap = 'round';
+                        c.beginPath();
+                        c.arc(0, 28, 55, 0.15 * Math.PI, 0.85 * Math.PI);
+                        c.stroke();
+                        c.restore();
+                    }
+                },
+                {
+                    id: 'fire-hype',
+                    name: 'Chama 60FPS',
+                    frames: 24,
+                    fps: 24,
+                    draw: (c, t) => {
+                        c.clearRect(0, 0, 512, 512);
+                        const phase = t * Math.PI * 2;
+                        const scale = 1 + Math.sin(phase) * 0.08;
+
+                        c.save();
+                        c.translate(256, 280);
+                        c.scale(scale, 2 - scale);
+
+                        // Chama exterior
+                        const grad = c.createLinearGradient(0, -180, 0, 140);
+                        grad.addColorStop(0, '#f43f5e');
+                        grad.addColorStop(0.5, '#f97316');
+                        grad.addColorStop(1, '#facc15');
+                        c.fillStyle = grad;
+
+                        c.beginPath();
+                        c.moveTo(0, -190 + Math.sin(phase) * 18);
+                        c.bezierCurveTo(130, -70, 150, 90, 0, 140);
+                        c.bezierCurveTo(-150, 90, -130, -70, 0, -190 + Math.sin(phase) * 18);
+                        c.fill();
+
+                        // Núcleo interior
+                        c.fillStyle = '#fef08a';
+                        c.beginPath();
+                        c.moveTo(0, -90 + Math.cos(phase) * 14);
+                        c.bezierCurveTo(65, -20, 75, 70, 0, 110);
+                        c.bezierCurveTo(-75, 70, -65, -20, 0, -90 + Math.cos(phase) * 14);
+                        c.fill();
+                        c.restore();
+                    }
+                },
+                {
+                    id: 'heart-pulse',
+                    name: 'Amor Fluido',
+                    frames: 24,
+                    fps: 24,
+                    draw: (c, t) => {
+                        c.clearRect(0, 0, 512, 512);
+                        // Duplo batimento cardíaco suave
+                        const beat = Math.pow(Math.sin(t * Math.PI), 4) * 0.24;
+                        const s = 1 + beat;
+
+                        c.save();
+                        c.translate(256, 260);
+                        c.scale(s, s);
+
+                        c.fillStyle = '#ec4899';
+                        c.beginPath();
+                        c.moveTo(0, 115);
+                        c.bezierCurveTo(-180, -10, -120, -165, 0, -75);
+                        c.bezierCurveTo(120, -165, 180, -10, 0, 115);
+                        c.fill();
+
+                        // Brilho
+                        c.fillStyle = 'rgba(255,255,255,0.45)';
+                        c.beginPath();
+                        c.ellipse(-65, -65, 22, 12, -0.6, 0, Math.PI * 2);
+                        c.fill();
+                        c.restore();
+                    }
+                },
+                {
+                    id: 'chroma-test',
+                    name: 'Teste Chroma',
+                    frames: 20,
+                    fps: 20,
+                    draw: (c, t) => {
+                        // Fundo verde sólido propositado para testar o removedor de fundo!
+                        c.fillStyle = '#00ff00';
+                        c.fillRect(0, 0, 512, 512);
+
+                        const angle = t * Math.PI * 2;
+                        c.save();
+                        c.translate(256, 256);
+                        c.rotate(angle);
+
+                        c.fillStyle = '#06b6d4';
+                        c.beginPath();
+                        for (let i = 0; i < 8; i++) {
+                            const r = i % 2 === 0 ? 150 : 75;
+                            const a = (i * Math.PI) / 4;
+                            if (i === 0) c.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+                            else c.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+                        }
+                        c.closePath();
+                        c.fill();
+
+                        c.fillStyle = '#090d11';
+                        c.beginPath();
+                        c.arc(0, 0, 42, 0, Math.PI * 2);
+                        c.fill();
+                        c.restore();
+                    }
+                }
+            ];
+
+            const grid = document.getElementById('preset-grid');
+            grid.innerHTML = '';
+
+            presets.forEach((preset, idx) => {
+                // Criar fotogramas do preset
+                const frames = [];
+                for (let i = 0; i < preset.frames; i++) {
+                    const fc = document.createElement('canvas');
+                    fc.width = 512;
+                    fc.height = 512;
+                    preset.draw(fc.getContext('2d'), i / preset.frames);
+                    frames.push({ canvas: fc, delay: 1000 / preset.fps });
+                }
+
+                // Cartão miniatura
+                const btn = document.createElement('button');
+                btn.className = 'group bg-studio-card hover:bg-slate-800 border border-studio-border hover:border-emerald-500/50 rounded-xl p-2 flex flex-col items-center gap-1.5 transition text-center';
+                
+                const thumb = document.createElement('img');
+                thumb.src = frames[0].canvas.toDataURL('image/png');
+                thumb.className = 'w-14 h-14 object-contain rounded-lg checkerboard-bg p-1 group-hover:scale-105 transition';
+                
+                const label = document.createElement('span');
+                label.className = 'text-[11px] font-semibold text-slate-200 group-hover:text-emerald-300 truncate w-full';
+                label.textContent = preset.name;
+
+                btn.appendChild(thumb);
+                btn.appendChild(label);
+                btn.addEventListener('click', () => {
+                    loadFramesIntoStudio(frames, preset.name);
+                    if (preset.id === 'chroma-test') {
+                        showToast('Dica: Vá a "Recorte" e ative "Remover Fundo" para apagar o verde!', 'info');
+                    }
+                });
+
+                grid.appendChild(btn);
+
+                // Carregar o primeiro preset automaticamente no arranque
+                if (idx === 0) {
+                    loadFramesIntoStudio(frames, preset.name, true);
+                }
+            });
+        }
+
+        // ============================================================================
+        // 3. DESCODIFICAÇÃO DE FICHEIROS (GIF, VÍDEO MP4/WEBM, IMAGENS ESTÁTICAS)
+        // ============================================================================
+        async function handleFileUpload(file) {
+            if (!file) return;
+            const type = file.type;
+            showToast(`A processar "${file.name}"...`, 'info');
+
+            try {
+                if (type === 'image/gif') {
+                    await decodeGifFile(file);
+                } else if (type.startsWith('video/')) {
+                    await decodeVideoFile(file);
+                } else if (type.startsWith('image/')) {
+                    await decodeStaticOrWebpImage(file);
+                } else {
+                    showToast('Formato não suportado. Use GIF, WebP, MP4, WebM, PNG ou JPG.', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Erro ao descodificar o ficheiro. Tente outro formato.', 'error');
+            }
+        }
+
+        async function decodeGifFile(file) {
+            const buffer = await file.arrayBuffer();
+            
+            // Usar gifuct-js se disponível para extrair todos os fotogramas reais sem perda
+            if (window.gifuct && window.gifuct.parseGIF && window.gifuct.decompressFrames) {
+                const gif = window.gifuct.parseGIF(buffer);
+                const rawFrames = window.gifuct.decompressFrames(gif, true);
+                
+                if (!rawFrames || rawFrames.length === 0) {
+                    throw new Error('GIF sem fotogramas válidos.');
+                }
+
+                const fullWidth = gif.lsd.width;
+                const fullHeight = gif.lsd.height;
+
+                const compCanvas = document.createElement('canvas');
+                compCanvas.width = fullWidth;
+                compCanvas.height = fullHeight;
+                const compCtx = compCanvas.getContext('2d');
+
+                const patchCanvas = document.createElement('canvas');
+                const patchCtx = patchCanvas.getContext('2d');
+
+                const extracted = [];
+
+                for (let i = 0; i < rawFrames.length; i++) {
+                    const f = rawFrames[i];
+                    const { width, height, left, top } = f.dims;
+
+                    patchCanvas.width = width;
+                    patchCanvas.height = height;
+                    const imgData = new ImageData(new Uint8ClampedArray(f.patch), width, height);
+                    patchCtx.putImageData(imgData, 0, 0);
+
+                    // Guardar estado anterior caso disposalType === 3
+                    let prevImageData = null;
+                    if (f.disposalType === 3) {
+                        prevImageData = compCtx.getImageData(0, 0, fullWidth, fullHeight);
+                    }
+
+                    compCtx.drawImage(patchCanvas, left, top);
+
+                    // Clonar fotograma composto
+                    const frameClone = document.createElement('canvas');
+                    frameClone.width = fullWidth;
+                    frameClone.height = fullHeight;
+                    frameClone.getContext('2d').drawImage(compCanvas, 0, 0);
+
+                    // Corrigir delays nulos ou absurdos (causa #1 de soluços nos GIFs!)
+                    let delayMs = (f.delay || 4) * 10;
+                    if (delayMs < 20) delayMs = 40;
+
+                    extracted.push({ canvas: frameClone, delay: delayMs });
+
+                    // Aplicar regra de disposal do GIF
+                    if (f.disposalType === 2) {
+                        compCtx.clearRect(left, top, width, height);
+                    } else if (f.disposalType === 3 && prevImageData) {
+                        compCtx.putImageData(prevImageData, 0, 0);
+                    }
+                }
+
+                loadFramesIntoStudio(extracted, file.name);
+            } else {
+                // Fallback para imagem estática
+                await decodeStaticOrWebpImage(file);
+            }
+        }
+
+        async function decodeVideoFile(file) {
+            const url = URL.createObjectURL(file);
+            const video = document.createElement('video');
+            video.src = url;
+            video.muted = true;
+            video.playsInline = true;
+
+            await new Promise((resolve, reject) => {
+                video.onloadedmetadata = resolve;
+                video.onerror = reject;
+            });
+
+            // Limitar duração a 10 segundos (regra oficial do WhatsApp)
+            const duration = Math.min(video.duration || 3, 10);
+            const sampleFps = 24;
+            const totalFrames = Math.max(1, Math.floor(duration * sampleFps));
+            const extracted = [];
+
+            for (let i = 0; i < totalFrames; i++) {
+                video.currentTime = (i / sampleFps);
+                await new Promise(r => { video.onseeked = r; });
+
+                const fc = document.createElement('canvas');
+                fc.width = video.videoWidth || 512;
+                fc.height = video.videoHeight || 512;
+                fc.getContext('2d').drawImage(video, 0, 0, fc.width, fc.height);
+                extracted.push({ canvas: fc, delay: 1000 / sampleFps });
+            }
+
+            URL.revokeObjectURL(url);
+            loadFramesIntoStudio(extracted, file.name);
+        }
+
+        async function decodeStaticOrWebpImage(file) {
+            // Se o navegador suportar ImageDecoder (Chrome/Edge/Android) para WebP animado
+            if ('ImageDecoder' in window && file.type === 'image/webp') {
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const decoder = new ImageDecoder({ data: buffer, type: 'image/webp' });
+                    await decoder.tracks.ready;
+                    const frameCount = decoder.tracks.selectedTrack.frameCount;
+
+                    if (frameCount > 1) {
+                        const extracted = [];
+                        for (let i = 0; i < frameCount; i++) {
+                            const result = await decoder.decode({ frameIndex: i });
+                            const fc = document.createElement('canvas');
+                            fc.width = result.image.displayWidth;
+                            fc.height = result.image.displayHeight;
+                            fc.getContext('2d').drawImage(result.image, 0, 0);
+                            const delayMs = Math.max(20, (result.image.duration || 40000) / 1000);
+                            extracted.push({ canvas: fc, delay: delayMs });
+                            result.image.close();
+                        }
+                        loadFramesIntoStudio(extracted, file.name);
+                        return;
+                    }
+                } catch (e) {
+                    // Continua para imagem estática
+                }
+            }
+
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.src = url;
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+
+            const fc = document.createElement('canvas');
+            fc.width = img.naturalWidth || 512;
+            fc.height = img.naturalHeight || 512;
+            fc.getContext('2d').drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+
+            loadFramesIntoStudio([{ canvas: fc, delay: 1000 }], file.name);
+        }
+
+        function loadFramesIntoStudio(frames, label = 'Sticker', silent = false) {
+            state.sourceFrames = frames;
+            state.isAnimated = frames.length > 1;
+            state.currentTimeMs = 0;
+            state.panX = 0;
+            state.panY = 0;
+            state.zoom = 1.0;
+            state.trimStart = 0;
+            state.trimEnd = 100;
+
+            document.getElementById('zoom-slider').value = 100;
+            document.getElementById('zoom-slider-val').textContent = '100%';
+            document.getElementById('zoom-badge').textContent = '100%';
+            document.getElementById('trim-start').value = 0;
+            document.getElementById('trim-end').value = 100;
+            document.getElementById('trim-start-val').textContent = '0%';
+            document.getElementById('trim-end-val').textContent = '100%';
+
+            updateMetrics();
+            if (!silent) {
+                showToast(`Carregado: ${label} (${frames.length} ${frames.length === 1 ? 'fotograma' : 'fotogramas'})`, 'success');
+            }
+        }
+
+        // ============================================================================
+        // 4. MOTOR ANTI-SOLUÇOS (REAMOSTRAGEM TEMPORAL CONSTANTE + BOOMERANG)
+        // ============================================================================
+        function getActiveFrameSequence() {
+            const total = state.sourceFrames.length;
+            if (total <= 1) return state.sourceFrames;
+
+            const startIdx = Math.floor((state.trimStart / 100) * (total - 1));
+            const endIdx = Math.max(startIdx + 1, Math.floor((state.trimEnd / 100) * (total - 1)));
+            const sliced = state.sourceFrames.slice(startIdx, endIdx + 1);
+
+            if (state.loopMode === 'boomerang' && sliced.length > 2) {
+                const reverse = sliced.slice(1, -1).reverse();
+                return [...sliced, ...reverse];
+            }
+            return sliced;
+        }
+
+        /**
+         * Constrói a linha temporal reamostrada a FPS constante (Anti-Soluços).
+         * Garante que cada fotograma exportado tem exatamente o mesmo intervalo (ex: 41.6ms para 24fps),
+         * eliminando engasgos causados por metadados irregulares de GIFs antigos.
+         */
+        function buildSmoothTimeline() {
+            const seq = getActiveFrameSequence();
+            if (seq.length <= 1) {
+                return [{ frame: seq[0], progress: 0 }];
+            }
+
+            // Calcular duração natural total ajustada pela velocidade
+            const rawDurationMs = seq.reduce((acc, f) => acc + (f.delay || 40), 0);
+            // Limitar estritamente a 9.8 segundos para cumprir o limite de 10s do WhatsApp
+            const targetDurationMs = Math.min(9800, Math.max(250, rawDurationMs / state.speed));
+            
+            const stepMs = 1000 / state.targetFps;
+            const outputCount = Math.min(240, Math.max(2, Math.round(targetDurationMs / stepMs)));
+
+            // Mapear tempos acumulados da sequência original
+            const cumTimes = [];
+            let acc = 0;
+            for (let i = 0; i < seq.length; i++) {
+                cumTimes.push(acc);
+                acc += (seq[i].delay || 40);
+            }
+
+            const timeline = [];
+            for (let i = 0; i < outputCount; i++) {
+                const normProgress = i / outputCount;
+                const targetOrigTime = normProgress * rawDurationMs;
+
+                // Encontrar o fotograma correspondente sem saltos bruscos
+                let chosenIdx = 0;
+                for (let j = cumTimes.length - 1; j >= 0; j--) {
+                    if (targetOrigTime >= cumTimes[j]) {
+                        chosenIdx = j;
+                        break;
+                    }
+                }
+                timeline.push({
+                    frame: seq[chosenIdx],
+                    progress: normProgress
+                });
+            }
+            return timeline;
+        }
+
+        function updateMetrics() {
+            const timeline = buildSmoothTimeline();
+            const isAnim = timeline.length > 1;
+            const durationSec = isAnim ? (timeline.length / state.targetFps) : 0;
+
+            document.getElementById('metric-fps').textContent = isAnim ? `${state.targetFps} FPS Fixo` : 'Estático';
+            document.getElementById('metric-duration').textContent = `${durationSec.toFixed(1)}s / 10s`;
+
+            // Estimativa realista de tamanho WebP (512x512)
+            const estimatedKb = isAnim
+                ? Math.round(timeline.length * (4.2 + state.quality * 6.5))
+                : Math.round(28 + state.quality * 45);
+
+            const sizeEl = document.getElementById('metric-size');
+            const dotEl = document.getElementById('compliance-dot');
+            const statusEl = document.getElementById('compliance-status');
+
+            sizeEl.textContent = `~${estimatedKb} KB / 500 KB`;
+
+            if (estimatedKb > 490) {
+                sizeEl.className = 'px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300';
+                dotEl.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                statusEl.textContent = 'Atenção: Reduza FPS ou Qualidade (< 500 KB)';
+                statusEl.className = 'text-xs font-semibold text-amber-300';
+            } else {
+                sizeEl.className = 'px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300';
+                dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+                statusEl.textContent = 'Pronto para WhatsApp (512×512 px)';
+                statusEl.className = 'text-xs font-semibold text-emerald-300';
+            }
+        }
+
+        // ============================================================================
+        // 5. PIPELINE DE RENDERIZAÇÃO DE FOTOGRAMA (512x512)
+        // ============================================================================
+        function renderCompositeFrame(targetCtx, sourceFrame, normProgress = 0) {
+            const W = 512;
+            const H = 512;
+            targetCtx.clearRect(0, 0, W, H);
+
+            if (!sourceFrame || !sourceFrame.canvas) return;
+
+            const src = sourceFrame.canvas;
+            const sw = src.width || 512;
+            const sh = src.height || 512;
+
+            // 1. Calcular escala Fit (Contain vs Cover) + Zoom do utilizador
+            const baseScale = state.fitMode === 'cover'
+                ? Math.max(W / sw, H / sh)
+                : Math.min(W / sw, H / sh);
+            const finalScale = baseScale * state.zoom;
+
+            const dw = sw * finalScale;
+            const dh = sh * finalScale;
+            const dx = (W - dw) / 2 + state.panX;
+            const dy = (H - dh) / 2 + state.panY;
+
+            // Desenhar no canvas de trabalho para aplicar filtros e Chroma Key
+            workCtx.clearRect(0, 0, W, H);
+            workCtx.save();
+            workCtx.filter = `brightness(${state.brightness}%) contrast(${state.contrast}%)`;
+            workCtx.drawImage(src, dx, dy, dw, dh);
+            workCtx.restore();
+
+            // 2. Remoção de Fundo (Chroma Key suave com anti-aliasing nas bordas)
+            if (state.chromaEnabled) {
+                const imgData = workCtx.getImageData(0, 0, W, H);
+                const data = imgData.data;
+                const { r: kr, g: kg, b: kb } = state.chromaColor;
+                const tol = state.chromaTolerance;
+                const feather = tol + 18;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const dist = Math.sqrt((r - kr) ** 2 + (g - kg) ** 2 + (b - kb) ** 2);
+
+                    if (dist < tol) {
+                        data[i + 3] = 0;
+                    } else if (dist < feather) {
+                        const alphaRatio = (dist - tol) / (feather - tol);
+                        data[i + 3] = Math.round(data[i + 3] * alphaRatio);
+                    }
+                }
+                workCtx.putImageData(imgData, 0, 0);
+            }
+
+            // 3. Contorno Recortado (Die-Cut Sticker Outline)
+            if (state.outlineSize > 0) {
+                const radius = state.outlineSize;
+                // Criar silhueta sólida da cor escolhida
+                const silCanvas = document.createElement('canvas');
+                silCanvas.width = W;
+                silCanvas.height = H;
+                const silCtx = silCanvas.getContext('2d');
+
+                silCtx.drawImage(workCanvas, 0, 0);
+                silCtx.globalCompositeOperation = 'source-in';
+                silCtx.fillStyle = state.outlineColor;
+                silCtx.fillRect(0, 0, W, H);
+
+                // Desenhar silhueta deslocada em 16 ângulos para borda limpa e rápida
+                const steps = 16;
+                for (let s = 0; s < steps; s++) {
+                    const angle = (s / steps) * Math.PI * 2;
+                    targetCtx.drawImage(
+                        silCanvas,
+                        Math.cos(angle) * radius,
+                        Math.sin(angle) * radius
+                    );
+                }
+            }
+
+            // Desenhar a camada principal recortada por cima do contorno
+            targetCtx.drawImage(workCanvas, 0, 0);
+
+            // 4. Texto / Meme Animado Sincronizado
+            if (state.text && state.text.trim().length > 0) {
+                targetCtx.save();
+                let yPos = H - 46;
+                if (state.textPos === 'top') yPos = 68;
+                else if (state.textPos === 'center') yPos = H / 2 + 16;
+
+                let scaleAnim = 1;
+                let offsetY = 0;
+                const phase = normProgress * Math.PI * 2;
+
+                if (state.textAnim === 'pulse') {
+                    scaleAnim = 1 + Math.sin(phase) * 0.12;
+                } else if (state.textAnim === 'bounce') {
+                    offsetY = -Math.abs(Math.sin(phase)) * 18;
+                }
+
+                targetCtx.translate(W / 2, yPos + offsetY);
+                targetCtx.scale(scaleAnim, scaleAnim);
+
+                targetCtx.font = `900 ${state.textSize}px "${state.textFont}", sans-serif`;
+                targetCtx.textAlign = 'center';
+                targetCtx.textBaseline = 'middle';
+                targetCtx.lineJoin = 'round';
+                targetCtx.lineWidth = Math.max(4, Math.round(state.textSize * 0.16));
+                targetCtx.strokeStyle = state.textStrokeColor;
+                targetCtx.fillStyle = state.textColor;
+
+                const txt = state.text.toUpperCase();
+                targetCtx.strokeText(txt, 0, 0, W - 36);
+                targetCtx.fillText(txt, 0, 0, W - 36);
+                targetCtx.restore();
+            }
+        }
+
+        // Loop de Pré-visualização a 60 FPS no ecrã
+        function animationLoop(timestamp) {
+            if (!state.lastRafTime) state.lastRafTime = timestamp;
+            const dt = timestamp - state.lastRafTime;
+            state.lastRafTime = timestamp;
+
+            const timeline = buildSmoothTimeline();
+            const totalFrames = timeline.length;
+
+            if (totalFrames > 0) {
+                const frameDurationMs = 1000 / state.targetFps;
+                const totalDurationMs = totalFrames * frameDurationMs;
+
+                if (state.isPlaying && totalFrames > 1) {
+                    state.currentTimeMs = (state.currentTimeMs + dt) % totalDurationMs;
+                }
+
+                const frameIdx = totalFrames > 1
+                    ? Math.floor(state.currentTimeMs / frameDurationMs) % totalFrames
+                    : 0;
+
+                const currentItem = timeline[frameIdx] || timeline[0];
+                renderCompositeFrame(ctx, currentItem.frame, currentItem.progress);
+
+                // Atualizar barra temporal e contador
+                const scrubber = document.getElementById('timeline-scrubber');
+                if (totalFrames > 1) {
+                    scrubber.value = Math.round((frameIdx / (totalFrames - 1)) * 100);
+                } else {
+                    scrubber.value = 0;
+                }
+                document.getElementById('frame-counter').textContent = `Fotograma ${frameIdx + 1} / ${totalFrames}`;
+            }
+
+            requestAnimationFrame(animationLoop);
+        }
+
+        // ============================================================================
+        // 6. CODIFICADOR NATIVO DE ANIMATED WEBP (RIFF/WEBP/ANIM/ANMF MUXER EM JS)
+        // ============================================================================
+        /**
+         * Extrai o bitstream VP8/VP8L bruto de um WebP estático gerado pelo Canvas.
+         */
+        function extractVp8PayloadFromStaticWebp(webpArrayBuffer) {
+            const view = new DataView(webpArrayBuffer);
+            const bytes = new Uint8Array(webpArrayBuffer);
+            let offset = 12; // Saltar cabeçalho 'RIFF' + size + 'WEBP'
+
+            while (offset < bytes.length - 8) {
+                const fourCC = String.fromCharCode(
+                    bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]
+                );
+                const chunkSize = view.getUint32(offset + 4, true);
+                const payloadStart = offset + 8;
+                const payloadEnd = payloadStart + chunkSize;
+
+                if (fourCC === 'VP8 ' || fourCC === 'VP8L') {
+                    return {
+                        fourCC,
+                        data: bytes.slice(payloadStart, payloadEnd)
+                    };
+                }
+                offset = payloadEnd + (chunkSize % 2);
+            }
+            throw new Error('Chunk VP8/VP8L não encontrado no WebP gerado pelo navegador.');
+        }
+
+        function writeFourCC(arr, offset, str) {
+            for (let i = 0; i < 4; i++) {
+                arr[offset + i] = str.charCodeAt(i);
+            }
+        }
+
+        /**
+         * Gera um ficheiro WebP (estático ou animado a 512x512 px) compatível com WhatsApp.
+         */
+        async function encodeStickerWebp(onProgress = null) {
+            const timeline = buildSmoothTimeline();
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = 512;
+            exportCanvas.height = 512;
+            const exportCtx = exportCanvas.getContext('2d');
+
+            // Caso 1: Sticker Estático (1 fotograma)
+            if (timeline.length <= 1) {
+                if (onProgress) onProgress(50);
+                renderCompositeFrame(exportCtx, timeline[0].frame, 0);
+                const blob = await new Promise(res => exportCanvas.toBlob(res, 'image/webp', state.quality));
+                if (onProgress) onProgress(100);
+                return { blob, isAnimated: false };
+            }
+
+            // Caso 2: Sticker Animado (Muxer RIFF ANIM + ANMF)
+            const frameDelayMs = Math.round(1000 / state.targetFps);
+            const anmfChunks = [];
+            let totalAnmfBytes = 0;
+
+            for (let i = 0; i < timeline.length; i++) {
+                renderCompositeFrame(exportCtx, timeline[i].frame, timeline[i].progress);
+                const frameBlob = await new Promise(res => exportCanvas.toBlob(res, 'image/webp', state.quality));
+                const buf = await frameBlob.arrayBuffer();
+                const { fourCC, data } = extractVp8PayloadFromStaticWebp(buf);
+
+                const paddedDataLen = data.length + (data.length % 2);
+                // ANMF header (16 bytes) + Sub-chunk header (8 bytes) + VP8/VP8L payload
+                const anmfPayloadSize = 16 + 8 + paddedDataLen;
+                const anmfTotalSize = 8 + anmfPayloadSize;
+
+                const chunk = new Uint8Array(anmfTotalSize);
+                const view = new DataView(chunk.buffer);
+
+                writeFourCC(chunk, 0, 'ANMF');
+                view.setUint32(4, anmfPayloadSize, true);
+
+                // Frame X (24-bit) = 0, Frame Y (24-bit) = 0
+                chunk[8] = 0; chunk[9] = 0; chunk[10] = 0;
+                chunk[11] = 0; chunk[12] = 0; chunk[13] = 0;
+
+                // Frame Width - 1 (511 = 0x01FF) em 24-bit little-endian
+                chunk[14] = 0xFF; chunk[15] = 0x01; chunk[16] = 0x00;
+                // Frame Height - 1 (511 = 0x01FF) em 24-bit little-endian
+                chunk[17] = 0xFF; chunk[18] = 0x01; chunk[19] = 0x00;
+
+                // Frame Duration em milissegundos (24-bit little-endian)
+                chunk[20] = frameDelayMs & 0xFF;
+                chunk[21] = (frameDelayMs >> 8) & 0xFF;
+                chunk[22] = (frameDelayMs >> 16) & 0xFF;
+
+                // Flags: Blending = 1 (do not blend), Disposal = 1 (dispose to background) -> 0x03
+                chunk[23] = 0x03;
+
+                // Sub-chunk VP8 / VP8L
+                writeFourCC(chunk, 24, fourCC);
+                view.setUint32(28, data.length, true);
+                chunk.set(data, 32);
+
+                anmfChunks.push(chunk);
+                totalAnmfBytes += chunk.length;
+
+                if (onProgress) {
+                    onProgress(Math.round(((i + 1) / timeline.length) * 95));
+                }
+            }
+
+            // Construir contentor RIFF WEBP final:
+            // RIFF (12) + VP8X (18) + ANIM (14) + ANMF chunks
+            const vp8xSize = 18;
+            const animSize = 14;
+            const riffPayloadSize = 4 + vp8xSize + animSize + totalAnmfBytes;
+            const finalBuffer = new Uint8Array(8 + riffPayloadSize);
+            const finalView = new DataView(finalBuffer.buffer);
+
+            // RIFF Header
+            writeFourCC(finalBuffer, 0, 'RIFF');
+            finalView.setUint32(4, riffPayloadSize, true);
+            writeFourCC(finalBuffer, 8, 'WEBP');
+
+            // VP8X Chunk (Flags: Animation (0x02) + Alpha (0x10) = 0x12)
+            writeFourCC(finalBuffer, 12, 'VP8X');
+            finalView.setUint32(16, 10, true);
+            finalBuffer[20] = 0x12; // Flags
+            // Canvas Width - 1 (511)
+            finalBuffer[24] = 0xFF; finalBuffer[25] = 0x01; finalBuffer[26] = 0x00;
+            // Canvas Height - 1 (511)
+            finalBuffer[27] = 0xFF; finalBuffer[28] = 0x01; finalBuffer[29] = 0x00;
+
+            // ANIM Chunk
+            writeFourCC(finalBuffer, 30, 'ANIM');
+            finalView.setUint32(34, 6, true);
+            // Background color BGRA (transparente) + Loop count = 0 (infinito)
+            finalView.setUint32(38, 0x00000000, true);
+            finalView.setUint16(42, 0, true);
+
+            // Anexar todos os fotogramas ANMF
+            let cursor = 44;
+            for (const ch of anmfChunks) {
+                finalBuffer.set(ch, cursor);
+                cursor += ch.length;
+            }
+
+            if (onProgress) onProgress(100);
+            return {
+                blob: new Blob([finalBuffer], { type: 'image/webp' }),
+                isAnimated: true
+            };
+        }
+
+        // ============================================================================
+        // 7. GESTÃO DO PACK DE STICKERS & EXPORTAÇÃO (.WASTICKERS / WEBP)
+        // ============================================================================
+        async function addCurrentStickerToPack() {
+            if (state.pack.length >= 30) {
+                showToast('O limite máximo de um pack WhatsApp é de 30 stickers.', 'error');
+                return;
+            }
+
+            showToast('A preparar sticker para o pack...', 'info');
+            const { blob, isAnimated } = await encodeStickerWebp();
+            const previewUrl = URL.createObjectURL(blob);
+
+            state.pack.push({
+                id: Date.now(),
+                blob,
+                previewUrl,
+                isAnimated,
+                sizeKb: Math.round(blob.size / 1024)
+            });
+
+            renderPackUI();
+            showToast(`Sticker guardado no pack! (${Math.round(blob.size / 1024)} KB)`, 'success');
+        }
+
+        function renderPackUI() {
+            const count = state.pack.length;
+            document.getElementById('pack-badge').textContent = count;
+            document.getElementById('pack-count-label').textContent = `${count} / 30 (Mín. 3)`;
+            document.getElementById('pack-progress-bar').style.width = `${Math.min(100, (count / 3) * 100)}%`;
+
+            const grid = document.getElementById('pack-items-grid');
+            const emptyState = document.getElementById('pack-empty-state');
+
+            if (count === 0) {
+                grid.innerHTML = '';
+                grid.appendChild(emptyState);
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            grid.innerHTML = '';
+            state.pack.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'relative group bg-studio-card border border-studio-border rounded-xl p-2 flex flex-col items-center';
+
+                const img = document.createElement('img');
+                img.src = item.previewUrl;
+                img.className = 'w-16 h-16 object-contain checkerboard-bg rounded-lg';
+
+                const meta = document.createElement('span');
+                meta.className = 'text-[10px] font-mono text-slate-400 mt-1';
+                meta.textContent = `${item.sizeKb} KB`;
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition flex items-center justify-center shadow';
+                delBtn.textContent = '✕';
+                delBtn.title = 'Remover do pack';
+                delBtn.onclick = () => {
+                    URL.revokeObjectURL(item.previewUrl);
+                    state.pack.splice(index, 1);
+                    renderPackUI();
+                };
+
+                card.appendChild(img);
+                card.appendChild(meta);
+                card.appendChild(delBtn);
+                grid.appendChild(card);
+            });
+        }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+
+        // ============================================================================
+        // 8. INTERAÇÕES DE ECRÃ (ARRASTAR, ZOOM RODA/PINÇA, CONTA-GOTAS)
+        // ============================================================================
+        function setupCanvasInteractions() {
+            let isDragging = false;
+            let startX = 0;
+            let startY = 0;
+
+            canvasWrapper.addEventListener('pointerdown', (e) => {
+                const rect = canvasWrapper.getBoundingClientRect();
+                const scaleX = 512 / rect.width;
+                const scaleY = 512 / rect.height;
+                const cx = Math.floor((e.clientX - rect.left) * scaleX);
+                const cy = Math.floor((e.clientY - rect.top) * scaleY);
+
+                // Se o modo Conta-Gotas estiver ativo, capturar a cor do pixel tocado
+                if (state.isPickingColor) {
+                    const pixel = ctx.getImageData(cx, cy, 1, 1).data;
+                    state.chromaColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+                    state.chromaEnabled = true;
+                    state.isPickingColor = false;
+
+                    document.getElementById('chroma-color').value = rgbToHex(pixel[0], pixel[1], pixel[2]);
+                    document.getElementById('chroma-toggle').checked = true;
+                    document.getElementById('eyedropper-banner').classList.add('hidden');
+                    showToast('Cor de fundo selecionada e removida!', 'success');
+                    return;
+                }
+
+                isDragging = true;
+                startX = e.clientX - state.panX;
+                startY = e.clientY - state.panY;
+                canvasWrapper.setPointerCapture(e.pointerId);
+            });
+
+            canvasWrapper.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                state.panX = e.clientX - startX;
+                state.panY = e.clientY - startY;
+            });
+
+            canvasWrapper.addEventListener('pointerup', () => {
+                isDragging = false;
+            });
+
+            canvasWrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.08 : -0.08;
+                state.zoom = Math.min(2.5, Math.max(0.4, state.zoom + delta));
+                const pct = Math.round(state.zoom * 100);
+                document.getElementById('zoom-slider').value = pct;
+                document.getElementById('zoom-slider-val').textContent = `${pct}%`;
+                document.getElementById('zoom-badge').textContent = `${pct}%`;
+            }, { passive: false });
+        }
+
+        // ============================================================================
+        // 9. LIGAÇÃO DE TODOS OS EVENTOS DA INTERFACE
+        // ============================================================================
+        function bindUIEvents() {
+            // Navegação por Abas
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const target = btn.dataset.tab;
+                    document.querySelectorAll('.tab-btn').forEach(b => {
+                        b.className = 'tab-btn py-2 px-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition relative';
+                    });
+                    btn.className = 'tab-btn py-2 px-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 text-emerald-300 border border-emerald-500/30 transition relative';
+
+                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+                    document.getElementById(`tab-${target}`).classList.remove('hidden');
+                });
+            });
+
+            // Modais de Importação e Exportação
+            const importModal = document.getElementById('import-modal');
+            const exportModal = document.getElementById('export-modal');
+
+            document.getElementById('btn-open-import').onclick = () => importModal.classList.remove('hidden');
+            document.getElementById('btn-close-import').onclick = () => importModal.classList.add('hidden');
+            document.getElementById('btn-export-modal').onclick = () => exportModal.classList.remove('hidden');
+            document.getElementById('btn-close-export').onclick = () => exportModal.classList.add('hidden');
+
+            // Drag & Drop no Modal de Importação
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+
+            dropZone.onclick = () => fileInput.click();
+            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-400', 'bg-emerald-500/10'); };
+            dropZone.ondragleave = () => dropZone.classList.remove('border-emerald-400', 'bg-emerald-500/10');
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-emerald-400', 'bg-emerald-500/10');
+                importModal.classList.add('hidden');
+                if (e.dataTransfer.files[0]) handleFileUpload(e.dataTransfer.files[0]);
+            };
+
+            fileInput.onchange = (e) => {
+                importModal.classList.add('hidden');
+                if (e.target.files[0]) handleFileUpload(e.target.files[0]);
+            };
+
+            // Play / Pause & Timeline Scrubber
+            document.getElementById('btn-play-pause').onclick = () => {
+                state.isPlaying = !state.isPlaying;
+                document.getElementById('icon-pause').classList.toggle('hidden', !state.isPlaying);
+                document.getElementById('icon-play').classList.toggle('hidden', state.isPlaying);
+            };
+
+            document.getElementById('timeline-scrubber').oninput = (e) => {
+                state.isPlaying = false;
+                document.getElementById('icon-pause').classList.add('hidden');
+                document.getElementById('icon-play').classList.remove('hidden');
+                const timeline = buildSmoothTimeline();
+                const totalDuration = timeline.length * (1000 / state.targetFps);
+                state.currentTimeMs = (e.target.value / 100) * totalDuration;
+            };
+
+            // Corte Início / Fim (Trim)
+            document.getElementById('trim-start').oninput = (e) => {
+                const val = Math.min(Number(e.target.value), state.trimEnd - 5);
+                state.trimStart = val;
+                e.target.value = val;
+                document.getElementById('trim-start-val').textContent = `${val}%`;
+                updateMetrics();
+            };
+
+            document.getElementById('trim-end').oninput = (e) => {
+                const val = Math.max(Number(e.target.value), state.trimStart + 5);
+                state.trimEnd = val;
+                e.target.value = val;
+                document.getElementById('trim-end-val').textContent = `${val}%`;
+                updateMetrics();
+            };
+
+            // Botões de Ajuste (Contain / Cover / Centrar)
+            document.querySelectorAll('.fit-btn').forEach(btn => {
+                btn.onclick = () => {
+                    state.fitMode = btn.dataset.fit;
+                    document.querySelectorAll('.fit-btn').forEach(b => {
+                        b.className = 'fit-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition';
+                    });
+                    btn.className = 'fit-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500 text-slate-950 font-bold transition';
+                };
+            });
+
+            document.getElementById('btn-reset-transform').onclick = () => {
+                state.panX = 0;
+                state.panY = 0;
+                state.zoom = 1.0;
+                document.getElementById('zoom-slider').value = 100;
+                document.getElementById('zoom-slider-val').textContent = '100%';
+                document.getElementById('zoom-badge').textContent = '100%';
+            };
+
+            // Controlos de Fluidez (FPS, Velocidade, Boomerang, Qualidade)
+            document.querySelectorAll('.fps-btn').forEach(btn => {
+                btn.onclick = () => {
+                    state.targetFps = Number(btn.dataset.fps);
+                    document.getElementById('fps-display').textContent = `${state.targetFps} FPS`;
+                    document.querySelectorAll('.fps-btn').forEach(b => {
+                        b.className = 'fps-btn py-2 rounded-xl bg-studio-card border border-studio-border text-xs font-mono font-semibold text-slate-300 hover:border-emerald-500/50 transition';
+                    });
+                    btn.className = 'fps-btn py-2 rounded-xl bg-emerald-500/20 border border-emerald-500 text-xs font-mono font-bold text-emerald-300 transition';
+                    updateMetrics();
+                };
+            });
+
+            document.getElementById('speed-slider').oninput = (e) => {
+                state.speed = Number(e.target.value);
+                document.getElementById('speed-val').textContent = `${state.speed.toFixed(1)}x`;
+                updateMetrics();
+            };
+
+            document.querySelectorAll('.loop-btn').forEach(btn => {
+                btn.onclick = () => {
+                    state.loopMode = btn.dataset.loop;
+                    document.querySelectorAll('.loop-btn').forEach(b => {
+                        b.className = 'loop-btn py-2.5 px-3 rounded-xl bg-studio-card border border-studio-border text-xs font-semibold text-slate-300 hover:border-cyan-500/50 flex items-center justify-center gap-2 transition';
+                    });
+                    btn.className = 'loop-btn py-2.5 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500 text-xs font-bold text-emerald-300 flex items-center justify-center gap-2 transition';
+                    updateMetrics();
+                };
+            });
+
+            document.getElementById('quality-slider').oninput = (e) => {
+                const q = Number(e.target.value);
+                state.quality = q / 100;
+                document.getElementById('quality-val').textContent = `${q}%`;
+                updateMetrics();
+            };
+
+            // Controlos de Recorte & Chroma Key
+            document.getElementById('chroma-toggle').onchange = (e) => {
+                state.chromaEnabled = e.target.checked;
+            };
+
+            document.getElementById('chroma-color').oninput = (e) => {
+                state.chromaColor = hexToRgb(e.target.value);
+                state.chromaEnabled = true;
+                document.getElementById('chroma-toggle').checked = true;
+            };
+
+            document.getElementById('btn-pick-color').onclick = () => {
+                state.isPickingColor = true;
+                document.getElementById('eyedropper-banner').classList.remove('hidden');
+            };
+
+            document.getElementById('chroma-tolerance').oninput = (e) => {
+                state.chromaTolerance = Number(e.target.value);
+                document.getElementById('chroma-tol-val').textContent = state.chromaTolerance;
+            };
+
+            document.getElementById('outline-size').oninput = (e) => {
+                state.outlineSize = Number(e.target.value);
+                document.getElementById('outline-size-val').textContent = `${state.outlineSize} px`;
+            };
+
+            document.getElementById('outline-color').oninput = (e) => {
+                state.outlineColor = e.target.value;
+            };
+
+            document.getElementById('zoom-slider').oninput = (e) => {
+                const pct = Number(e.target.value);
+                state.zoom = pct / 100;
+                document.getElementById('zoom-slider-val').textContent = `${pct}%`;
+                document.getElementById('zoom-badge').textContent = `${pct}%`;
+            };
+
+            document.getElementById('brightness-slider').oninput = (e) => {
+                state.brightness = Number(e.target.value);
+                document.getElementById('brightness-val').textContent = `${state.brightness}%`;
+            };
+
+            document.getElementById('contrast-slider').oninput = (e) => {
+                state.contrast = Number(e.target.value);
+                document.getElementById('contrast-val').textContent = `${state.contrast}%`;
+            };
+
+            // Controlos de Texto & Meme
+            document.getElementById('sticker-text').oninput = (e) => { state.text = e.target.value; };
+            document.getElementById('text-font').onchange = (e) => { state.textFont = e.target.value; };
+            document.getElementById('text-pos').onchange = (e) => { state.textPos = e.target.value; };
+            document.getElementById('text-color').oninput = (e) => { state.textColor = e.target.value; };
+            document.getElementById('text-stroke-color').oninput = (e) => { state.textStrokeColor = e.target.value; };
+            document.getElementById('text-size').oninput = (e) => {
+                state.textSize = Number(e.target.value);
+                document.getElementById('text-size-val').textContent = `${state.textSize} px`;
+            };
+
+            document.querySelectorAll('.textanim-btn').forEach(btn => {
+                btn.onclick = () => {
+                    state.textAnim = btn.dataset.textanim;
+                    document.querySelectorAll('.textanim-btn').forEach(b => {
+                        b.className = 'textanim-btn py-2 rounded-xl bg-studio-card border border-studio-border text-xs font-semibold text-slate-300';
+                    });
+                    btn.className = 'textanim-btn py-2 rounded-xl bg-emerald-500/20 border border-emerald-500 text-xs font-bold text-emerald-300';
+                };
+            });
+
+            // Gestão de Pack e Botões de Exportação
+            document.getElementById('btn-add-to-pack').onclick = addCurrentStickerToPack;
+            document.getElementById('btn-empty-add').onclick = addCurrentStickerToPack;
+
+            // Transferir Sticker Único WebP
+            document.getElementById('btn-download-single-webp').onclick = async () => {
+                const progressBox = document.getElementById('render-progress-box');
+                const bar = document.getElementById('render-bar');
+                const pctText = document.getElementById('render-percent');
+                progressBox.classList.remove('hidden');
+
+                try {
+                    const { blob } = await encodeStickerWebp((pct) => {
+                        bar.style.width = `${pct}%`;
+                        pctText.textContent = `${pct}%`;
+                    });
+                    const sizeKb = Math.round(blob.size / 1024);
+                    triggerDownload(blob, `sticker-whatsapp-512x512.webp`);
+                    showToast(`WebP transferido com sucesso (${sizeKb} KB)!`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Falha ao codificar WebP.', 'error');
+                } finally {
+                    setTimeout(() => progressBox.classList.add('hidden'), 1200);
+                }
+            };
+
+            // Transferir Pacote .wastickers (ZIP estruturado para WhatsApp / Sticker Maker)
+            document.getElementById('btn-download-wastickers').onclick = async () => {
+                const progressBox = document.getElementById('render-progress-box');
+                const bar = document.getElementById('render-bar');
+                const pctText = document.getElementById('render-percent');
+                progressBox.classList.remove('hidden');
+
+                try {
+                    // Se o pack estiver vazio, incluir automaticamente o sticker atual
+                    if (state.pack.length === 0) {
+                        const { blob, isAnimated } = await encodeStickerWebp((pct) => {
+                            bar.style.width = `${pct}%`;
+                            pctText.textContent = `${pct}%`;
+                        });
+                        state.pack.push({
+                            id: Date.now(),
+                            blob,
+                            previewUrl: URL.createObjectURL(blob),
+                            isAnimated,
+                            sizeKb: Math.round(blob.size / 1024)
+                        });
+                        renderPackUI();
+                    }
+
+                    const zip = new JSZip();
+                    const packTitle = (document.getElementById('pack-name').value || 'StickerFlow Pack').trim();
+                    const packAuthor = (document.getElementById('pack-author').value || 'StickerFlow Studio').trim();
+
+                    zip.file('title.txt', packTitle);
+                    zip.file('author.txt', packAuthor);
+
+                    // Ícone de bandeja (tray.png 96x96)
+                    const trayCanvas = document.createElement('canvas');
+                    trayCanvas.width = 96;
+                    trayCanvas.height = 96;
+                    const trayCtx = trayCanvas.getContext('2d');
+                    const firstImg = new Image();
+                    firstImg.src = state.pack[0].previewUrl;
+                    await new Promise(r => { firstImg.onload = r; firstImg.onerror = r; });
+                    trayCtx.drawImage(firstImg, 0, 0, 96, 96);
+                    const trayBlob = await new Promise(res => trayCanvas.toBlob(res, 'image/png'));
+                    zip.file('tray.png', trayBlob);
+
+                    // Adicionar cada sticker WebP numerado
+                    state.pack.forEach((item, idx) => {
+                        const num = String(idx + 1).padStart(2, '0');
+                        zip.file(`${num}_sticker.webp`, item.blob);
+                    });
+
+                    const content = await zip.generateAsync({ type: 'blob' });
+                    const safeName = packTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    triggerDownload(content, `${safeName || 'pack'}.wastickers`);
+
+                    showToast(`Pack "${packTitle}" transferido com ${state.pack.length} sticker(s)!`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Erro ao empacotar ficheiro .wastickers.', 'error');
+                } finally {
+                    setTimeout(() => progressBox.classList.add('hidden'), 1200);
+                }
+            };
+        }
+
+        // Inicialização no carregamento da página
+        window.onload = () => {
+            generateProceduralPresets();
+            setupCanvasInteractions();
+            bindUIEvents();
+            requestAnimationFrame(animationLoop);
+        };
+    </script>
+</body>
+</html>
+```
